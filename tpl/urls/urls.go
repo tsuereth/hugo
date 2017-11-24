@@ -32,13 +32,15 @@ var (
 // New returns a new instance of the urls-namespaced template functions.
 func New(deps *deps.Deps) *Namespace {
 	return &Namespace{
-		deps: deps,
+		deps:      deps,
+		multihost: deps.Cfg.GetBool("multihost"),
 	}
 }
 
 // Namespace provides template functions for the "urls" namespace.
 type Namespace struct {
-	deps *deps.Deps
+	deps      *deps.Deps
+	multihost bool
 }
 
 // AbsURL takes a given string and converts it to an absolute URL.
@@ -124,7 +126,7 @@ func (ns *Namespace) RelLangURL(a interface{}) (template.HTML, error) {
 		return "", err
 	}
 
-	return template.HTML(ns.deps.PathSpec.RelURL(s, true)), nil
+	return template.HTML(ns.deps.PathSpec.RelURL(s, !ns.multihost)), nil
 }
 
 // AbsLangURL takes a given string and converts it to an absolute URL according
@@ -136,5 +138,5 @@ func (ns *Namespace) AbsLangURL(a interface{}) (template.HTML, error) {
 		return "", err
 	}
 
-	return template.HTML(ns.deps.PathSpec.AbsURL(s, true)), nil
+	return template.HTML(ns.deps.PathSpec.AbsURL(s, !ns.multihost)), nil
 }

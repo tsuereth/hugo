@@ -53,6 +53,9 @@ type targetPathDescriptor struct {
 	// language subdir.
 	LangPrefix string
 
+	// Whether this is a multihost multilingual setup.
+	IsMultihost bool
+
 	// Page.URLPath.URL. Will override any Slug etc. for regular pages.
 	URL string
 
@@ -81,12 +84,13 @@ func (p *Page) createTargetPathDescriptor(t output.Format) (targetPathDescriptor
 func (p *Page) initTargetPathDescriptor() error {
 
 	d := &targetPathDescriptor{
-		PathSpec: p.s.PathSpec,
-		Kind:     p.Kind,
-		Sections: p.sections,
-		UglyURLs: p.s.Info.uglyURLs,
-		Dir:      filepath.ToSlash(p.Source.Dir()),
-		URL:      p.URLPath.URL,
+		PathSpec:    p.s.PathSpec,
+		Kind:        p.Kind,
+		Sections:    p.sections,
+		UglyURLs:    p.s.Info.uglyURLs,
+		Dir:         filepath.ToSlash(p.Source.Dir()),
+		URL:         p.URLPath.URL,
+		IsMultihost: p.s.owner.IsMultihost(),
 	}
 
 	if p.Slug != "" {
@@ -125,10 +129,14 @@ func (p *Page) initTargetPathDescriptor() error {
 // createTargetPath creates the target filename for this Page for the given
 // output.Format. Some additional URL parts can also be provided, the typical
 // use case being pagination.
-func (p *Page) createTargetPath(t output.Format, addends ...string) (string, error) {
+func (p *Page) createTargetPath(t output.Format, noLangPrefix bool, addends ...string) (string, error) {
 	d, err := p.createTargetPathDescriptor(t)
 	if err != nil {
 		return "", nil
+	}
+
+	if noLangPrefix {
+		d.LangPrefix = ""
 	}
 
 	if len(addends) > 0 {
@@ -179,7 +187,11 @@ func createTargetPath(d targetPathDescriptor) string {
 	if d.Kind == KindPage {
 		// Always use URL if it's specified
 		if d.URL != "" {
-			pagePath = filepath.Join(pagePath, d.URL)
+			if d.IsMultihost && d.LangPrefix != "" && !strings.HasPrefix(d.URL, "/"+d.LangPrefix) {
+				pagePath = filepath.Join(d.LangPrefix, pagePath, d.URL)
+			} else {
+				pagePath = filepath.Join(pagePath, d.URL)
+			}
 			if strings.HasSuffix(d.URL, "/") || !strings.Contains(d.URL, ".") {
 				pagePath = filepath.Join(pagePath, d.Type.BaseName+d.Type.MediaType.FullSuffix())
 			}
@@ -252,7 +264,7 @@ func (p *Page) createRelativePermalink() string {
 }
 
 func (p *Page) createRelativePermalinkForOutputFormat(f output.Format) string {
-	tp, err := p.createTargetPath(f)
+	tp, err := p.createTargetPath(f, p.s.owner.IsMultihost())
 
 	if err != nil {
 		p.s.Log.ERROR.Printf("Failed to create permalink for page %q: %s", p.FullFilePath(), err)

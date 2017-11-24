@@ -16,6 +16,7 @@ package hugolib
 import (
 	"fmt"
 	"path"
+	"strings"
 	"sync"
 
 	"github.com/gohugoio/hugo/helpers"
@@ -147,7 +148,7 @@ func (s *Site) renderPaginator(p *PageOutput) error {
 
 		// write alias for page 1
 		addend := fmt.Sprintf("/%s/%d", paginatePath, 1)
-		target, err := p.createTargetPath(p.outputFormat, addend)
+		target, err := p.createTargetPath(p.outputFormat, false, addend)
 		if err != nil {
 			return err
 		}
@@ -380,6 +381,13 @@ func (s *Site) renderAliases() error {
 					a = path.Join(a, f.Path)
 				}
 
+				lang := p.Lang()
+
+				if s.owner.multihost && !strings.HasPrefix(a, "/"+lang) {
+					// These need to be in its language root.
+					a = path.Join(lang, a)
+				}
+
 				if err := s.writeDestAlias(a, plink, p); err != nil {
 					return err
 				}
@@ -387,7 +395,7 @@ func (s *Site) renderAliases() error {
 		}
 	}
 
-	if s.owner.multilingual.enabled() {
+	if s.owner.multilingual.enabled() && !s.owner.IsMultihost() {
 		mainLang := s.owner.multilingual.DefaultLang
 		if s.Info.defaultContentLanguageInSubdir {
 			mainLangURL := s.PathSpec.AbsURL(mainLang.Lang, false)

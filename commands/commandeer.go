@@ -24,7 +24,10 @@ type commandeer struct {
 	*deps.DepsCfg
 	pathSpec    *helpers.PathSpec
 	visitedURLs *types.EvictingStringQueue
-	configured  bool
+
+	serverPorts []int
+
+	configured bool
 }
 
 func (c *commandeer) Set(key string, value interface{}) {
@@ -39,6 +42,10 @@ func (c *commandeer) Set(key string, value interface{}) {
 func (c *commandeer) PathSpec() *helpers.PathSpec {
 	c.configured = true
 	return c.pathSpec
+}
+
+func (c *commandeer) languages() helpers.Languages {
+	return c.Cfg.Get("languagesSorted").(helpers.Languages)
 }
 
 func (c *commandeer) initFs(fs *hugofs.Fs) error {

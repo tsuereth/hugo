@@ -254,7 +254,6 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 
 	doc3 := enSite.RegularPages[2]
 	permalink = doc3.Permalink()
-	require.NoError(t, err, "permalink call failed")
 	// Note that /superbob is a custom URL set in frontmatter.
 	// We respect that URL literally (it can be /search.json)
 	// and do no not do any language code prefixing.
@@ -1035,7 +1034,7 @@ func createMultiTestSitesForConfig(t *testing.T, siteConfig testSiteConfig, conf
 
 	if err := afero.WriteFile(mf,
 		filepath.Join("layouts", "_default/list.html"),
-		[]byte("{{ $p := .Paginator }}List Page {{ $p.PageNumber }}: {{ .Title }}|{{ i18n \"hello\" }}|{{ .Permalink }}"),
+		[]byte("{{ $p := .Paginator }}List Page {{ $p.PageNumber }}: {{ .Title }}|{{ i18n \"hello\" }}|{{ .Permalink }}|Pager: {{ template \"_internal/pagination.html\" . }}"),
 		0755); err != nil {
 		t.Fatalf("Failed to write layout file: %s", err)
 	}
@@ -1155,6 +1154,7 @@ NOTE: without slug, "doc2" should be used, without ".en" as URL
 title: doc3
 weight: 3
 publishdate: "2000-01-03"
+aliases: [/en/al/alias1,/al/alias2/]
 tags:
  - tag2
  - tag1
@@ -1269,7 +1269,7 @@ lag:
 		t.Fatalf("Failed to create sites: %s", err)
 	}
 
-	if len(sites.Sites) != 4 {
+	if len(sites.Sites) == 0 {
 		t.Fatalf("Got %d sites", len(sites.Sites))
 	}
 

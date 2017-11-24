@@ -14,11 +14,13 @@
 package hugolib
 
 import (
+	"errors"
 	"fmt"
 
 	"io"
 	"strings"
 
+	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/spf13/afero"
 	"github.com/spf13/viper"
@@ -80,9 +82,81 @@ func LoadConfig(fs afero.Fs, relativeSourcePath, configFilename string) (*viper.
 		helpers.Deprecated("site config", "disableRobotsTXT", "Use disableKinds= [\"robotsTXT\"]", false)
 	}
 
-	loadDefaultSettingsFor(v)
+	if err := loadDefaultSettingsFor(v); err != nil {
+		return v, err
+	}
 
 	return v, nil
+}
+
+func loadLanguageSettings(cfg config.Provider, oldLangs helpers.Languages) error {
+	multilingual := cfg.GetStringMap("languages")
+	var (
+		langs helpers.Languages
+		err   error
+	)
+
+	if len(multilingual) == 0 {
+		langs = append(langs, helpers.NewDefaultLanguage(cfg))
+	} else {
+		langs, err = toSortedLanguages(cfg, multilingual)
+		if err != nil {
+			return fmt.Errorf("Failed to parse multilingual config: %s", err)
+		}
+	}
+
+	if oldLangs != nil {
+		// When in multihost mode, the languages are mapped to a server, so
+		// some structural language changes will need a restart of the dev server.
+		// The validation below isn't complete, but should cover the most
+		// important cases.
+		var invalid bool
+		if langs.IsMultihost() != oldLangs.IsMultihost() {
+			invalid = true
+		} else {
+			if langs.IsMultihost() && len(langs) != len(oldLangs) {
+				invalid = true
+			}
+		}
+
+		if invalid {
+			return errors.New("language change needing a server restart detected")
+		}
+
+		if langs.IsMultihost() {
+			// We need to transfer any server baseURL to the new language
+			for i, ol := range oldLangs {
+				nl := langs[i]
+				nl.Set("baseURL", ol.GetString("baseURL"))
+			}
+		}
+	}
+
+	cfg.Set("languagesSorted", langs)
+	cfg.Set("multilingual", len(langs) > 1)
+
+	// The baseURL may be provided at the language level. If that is true,
+	// then every language must have a baseURL. In this case we always render
+	// to a language sub folder, which is then stripped from all the Permalink URLs etc.
+	var baseURLFromLang bool
+
+	for _, l := range langs {
+		burl := l.GetLocal("baseURL")
+		if baseURLFromLang && burl == nil {
+			return errors.New("baseURL must be set on all or none of the languages")
+		}
+
+		if burl != nil {
+			baseURLFromLang = true
+		}
+	}
+
+	if baseURLFromLang {
+		cfg.Set("defaultContentLanguageInSubdir", true)
+		cfg.Set("multihost", true)
+	}
+
+	return nil
 }
 
 func loadDefaultSettingsFor(v *viper.Viper) error {
@@ -154,5 +228,5 @@ func loadDefaultSettingsFor(v *viper.Viper) error {
 	v.SetDefault("debug", false)
 	v.SetDefault("disableFastRender", false)
 
-	return nil
+	return loadLanguageSettings(v, nil)
 }
