@@ -73,7 +73,12 @@ func (c *PageCollections) refreshPageCaches() {
 				for _, p := range c.indexPages {
 					// If the Page has a Title, cache by that as well as by the filepath.
 					if p.Title != "" {
-						cache[p.Title] = p
+						if kind == KindTaxonomyTerm {
+							taxonomyTitle := path.Join(p.Section(), p.Title)
+							cache[taxonomyTitle] = p
+						} else {
+							cache[p.Title] = p
+						}
 					}
 					key := path.Join(p.sections...)
 					cache[key] = p
